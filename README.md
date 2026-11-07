@@ -13,6 +13,3 @@ Probar en tu PC:
 Probar las pruebas unitarias:
 
     npm test
-
-Prueba de protección de rama `main` (push directo).
-Prueba de push directo a `main_protec`.
