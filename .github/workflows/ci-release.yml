@@ -1,0 +1,87 @@
+name: CI y Release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*.*.*']
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ---------- 1. Compilar, probar y empaquetar ----------
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Pruebas unitarias
+        run: npm test
+
+      - name: Calcular versión
+        id: ver
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=dev-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build de producción
+        env:
+          # Las variables VITE_ se fijan AL COMPILAR (Semana 11).
+          # Aquí el pipeline escribe la versión dentro del build.
+          VITE_APP_ENV: ci
+          VITE_APP_VERSION: ${{ steps.ver.outputs.version }}
+        run: npm run build
+
+      - name: Comprimir
+        run: cd dist && zip -r ../vue-frontend-demo-${{ steps.ver.outputs.version }}.zip .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vue-frontend-demo
+          path: vue-frontend-demo-*.zip
+
+  # ---------- 2. Crear el Release (solo al subir un tag vX.Y.Z) ----------
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: vue-frontend-demo
+
+      - name: Crear Release en GitHub
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: gh release create "$TAG" vue-frontend-demo-*.zip --repo "$REPO" --title "$TAG" --generate-notes
+
+  # ---------- 3. Avisar a Slack si algo falló ----------
+  notify:
+    needs: [build, release]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Avisar a Slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          REPO: ${{ github.repository }}
+          REF_NAME: ${{ github.head_ref || github.ref_name }}
+          ACTOR: ${{ github.actor }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          MSG=$(printf ':x: *Falló el pipeline* en %s (%s), cambio de %s\n<%s|Ver la ejecución>' "$REPO" "$REF_NAME" "$ACTOR" "$RUN_URL")
+          jq -n --arg text "$MSG" '{text: $text}' | curl -sS -f -X POST -H 'Content-type: application/json' --data @- "$SLACK_WEBHOOK_URL"
