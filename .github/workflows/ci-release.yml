@@ -5,7 +5,7 @@ on:
     branches: [main]
     tags: ['v*.*.*']
   pull_request:
-    branches: [main]
+    branches: [main, main_protec]
 
 jobs:
   # ---------- 1. Compilar, probar y empaquetar ----------

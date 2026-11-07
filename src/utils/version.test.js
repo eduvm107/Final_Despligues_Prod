@@ -3,7 +3,8 @@ import { etiquetaVersion } from './version'
 
 describe('etiquetaVersion', () => {
   it('reconoce un release', () => {
-    expect(etiquetaVersion('v1.0.0')).toBe('Release v1.0.0')
+    // Error intencional para probar la notificación a Slack
+    expect(etiquetaVersion('v1.0.0')).toBe('Release v9.9.9')
   })
 
   it('reconoce un build de desarrollo', () => {
