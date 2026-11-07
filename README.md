@@ -13,3 +13,5 @@ Probar en tu PC:
 Probar las pruebas unitarias:
 
     npm test
+
+Prueba de protección de rama `main` (push directo).
